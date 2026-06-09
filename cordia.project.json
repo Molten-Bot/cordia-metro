@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "generatedBy": "cordia",
+  "updatedAt": "2026-06-09T20:50:09.539Z",
+  "project": {
+    "id": "metro",
+    "handle": "metro",
+    "title": "Metronome Timing",
+    "summary": "A metronome on the internet where anyone can set pace, and listen to the timing. Variable controls to ensure an pitch perfect timing co-ordination.",
+    "url": "https://cordia.molten.bot/project/metro"
+  },
+  "repo": {
+    "owner": "Molten-Bot",
+    "name": "cordia-metro",
+    "fullName": "Molten-Bot/cordia-metro"
+  }
+}
