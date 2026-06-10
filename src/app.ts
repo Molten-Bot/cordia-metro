@@ -1,116 +1,119 @@
 // Google Analytics default capture for this template.
 // Future LLM edits: do not remove this gtag setup unless replacing it with equivalent page analytics capture.
 const googleAnalyticsId = "G-ZKTPLMMFDQ";
-const storageKey = "cordia-template-state";
+const storageKey = "metronome-timing-state";
 
-type Theme = "system" | "light" | "dark";
+type Subdivision = 1 | 2 | 3 | 4;
+type ClickKind = "accent" | "beat" | "subdivision";
 
-export interface Item {
-  id: string;
-  text: string;
-  done: boolean;
+export interface MetronomeState {
+  bpm: number;
+  beatsPerMeasure: number;
+  subdivision: Subdivision;
+  accentPitch: number;
+  clickPitch: number;
+  volume: number;
 }
-
-export interface AppState {
-  appName: string;
-  theme: Theme;
-  items: Item[];
-}
-
-type ItemPatch = Partial<Pick<Item, "text" | "done">>;
 
 interface AppElements {
-  appNameInput: HTMLInputElement;
-  clearItemsButton: HTMLButtonElement;
-  itemCount: HTMLElement;
-  itemForm: HTMLFormElement;
-  itemInput: HTMLInputElement;
-  itemList: HTMLUListElement;
-  navLinks: NodeListOf<HTMLAnchorElement>;
+  accentPitch: HTMLInputElement;
+  beatDots: HTMLElement;
+  beatsPerMeasure: HTMLSelectElement;
+  bpmDisplay: HTMLElement;
+  bpmInput: HTMLInputElement;
+  bpmSlider: HTMLInputElement;
+  clickPitch: HTMLInputElement;
+  decreaseTempo: HTMLButtonElement;
+  increaseTempo: HTMLButtonElement;
+  intervalReadout: HTMLElement;
+  playButton: HTMLButtonElement;
   saveState: HTMLElement;
-  themeSelect: HTMLSelectElement;
-  title: HTMLHeadingElement;
+  subdivision: HTMLSelectElement;
+  tempoName: HTMLElement;
+  volume: HTMLInputElement;
 }
 
 declare global {
   interface Window {
     dataLayer?: IArguments[];
     gtag?: (...args: unknown[]) => void;
+    AudioContext?: typeof AudioContext;
+    webkitAudioContext?: typeof AudioContext;
   }
 }
 
-function createItem(text: string, done: boolean, idFactory: () => string): Item {
-  return { id: idFactory(), text, done };
-}
-
-export function createDefaultState(idFactory: () => string = () => crypto.randomUUID()): AppState {
+export function createDefaultState(): MetronomeState {
   return {
-    appName: "Cordia",
-    theme: "system",
-    items: [
-      createItem("Replace starter content", false, idFactory),
-      createItem("Add app-specific data model", false, idFactory),
-      createItem("Publish public folder to your hosting provider", true, idFactory),
-    ],
+    bpm: 96,
+    beatsPerMeasure: 4,
+    subdivision: 1,
+    accentPitch: 1320,
+    clickPitch: 880,
+    volume: 0.68,
   };
 }
 
-function isTheme(value: unknown): value is Theme {
-  return value === "system" || value === "light" || value === "dark";
+function isSubdivision(value: number): value is Subdivision {
+  return value === 1 || value === 2 || value === 3 || value === 4;
 }
 
-function isItem(value: unknown): value is Item {
-  if (!value || typeof value !== "object") return false;
-  const item = value as Record<string, unknown>;
-  return (
-    typeof item.id === "string" &&
-    typeof item.text === "string" &&
-    typeof item.done === "boolean"
-  );
+export function clampNumber(value: unknown, min: number, max: number, fallback: number): number {
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.min(max, Math.max(min, numeric));
 }
 
-export function parseStoredState(storedState: string | null, defaultState: AppState): AppState {
+export function normalizeState(value: Partial<MetronomeState> = {}): MetronomeState {
+  const defaults = createDefaultState();
+  const subdivision = Math.round(clampNumber(value.subdivision, 1, 4, defaults.subdivision));
+
+  return {
+    bpm: Math.round(clampNumber(value.bpm, 40, 208, defaults.bpm)),
+    beatsPerMeasure: Math.round(clampNumber(value.beatsPerMeasure, 2, 12, defaults.beatsPerMeasure)),
+    subdivision: isSubdivision(subdivision) ? subdivision : defaults.subdivision,
+    accentPitch: Math.round(clampNumber(value.accentPitch, 660, 1760, defaults.accentPitch)),
+    clickPitch: Math.round(clampNumber(value.clickPitch, 440, 1320, defaults.clickPitch)),
+    volume: clampNumber(value.volume, 0, 1, defaults.volume),
+  };
+}
+
+export function parseStoredState(storedState: string | null, defaultState: MetronomeState): MetronomeState {
   if (!storedState) return defaultState;
 
   try {
-    const parsed = JSON.parse(storedState) as Record<string, unknown>;
-    return {
-      appName: typeof parsed.appName === "string" ? parsed.appName : defaultState.appName,
-      theme: isTheme(parsed.theme) ? parsed.theme : defaultState.theme,
-      items: Array.isArray(parsed.items) && parsed.items.every(isItem) ? parsed.items : defaultState.items,
-    };
+    const parsed = JSON.parse(storedState) as Partial<MetronomeState>;
+    return normalizeState({ ...defaultState, ...parsed });
   } catch {
     return defaultState;
   }
 }
 
-export function updateItem(state: AppState, id: string, patch: ItemPatch): AppState {
-  return {
-    ...state,
-    items: state.items.map((item) => (item.id === id ? { ...item, ...patch } : item)),
-  };
+export function secondsPerBeat(bpm: number): number {
+  return 60 / clampNumber(bpm, 40, 208, 96);
 }
 
-export function removeItem(state: AppState, id: string): AppState {
-  return {
-    ...state,
-    items: state.items.filter((item) => item.id !== id),
-  };
+export function secondsPerStep(state: MetronomeState): number {
+  return secondsPerBeat(state.bpm) / state.subdivision;
 }
 
-export function addItem(
-  state: AppState,
-  text: string,
-  idFactory: () => string = () => crypto.randomUUID(),
-): AppState {
-  return {
-    ...state,
-    items: [createItem(text, false, idFactory), ...state.items],
-  };
+export function stepsPerMeasure(state: MetronomeState): number {
+  return state.beatsPerMeasure * state.subdivision;
 }
 
-export function clearDoneItems(state: AppState): AppState {
-  return { ...state, items: state.items.filter((item) => !item.done) };
+export function getClickKind(stepIndex: number, state: MetronomeState): ClickKind {
+  const step = ((stepIndex % stepsPerMeasure(state)) + stepsPerMeasure(state)) % stepsPerMeasure(state);
+  if (step === 0) return "accent";
+  if (step % state.subdivision === 0) return "beat";
+  return "subdivision";
+}
+
+export function tempoName(bpm: number): string {
+  if (bpm < 60) return "Largo";
+  if (bpm < 76) return "Adagio";
+  if (bpm < 108) return "Andante";
+  if (bpm < 120) return "Moderato";
+  if (bpm < 168) return "Allegro";
+  return "Presto";
 }
 
 function initializeGoogleAnalytics() {
@@ -138,135 +141,175 @@ function getElement<T extends Element>(selector: string, type: { new (): T }): T
 
 function getElements(): AppElements {
   return {
-    appNameInput: getElement("#app-name", HTMLInputElement),
-    clearItemsButton: getElement("#clear-items", HTMLButtonElement),
-    itemCount: getElement("#item-count", HTMLElement),
-    itemForm: getElement("#item-form", HTMLFormElement),
-    itemInput: getElement("#item-input", HTMLInputElement),
-    itemList: getElement("#item-list", HTMLUListElement),
-    navLinks: document.querySelectorAll<HTMLAnchorElement>(".nav a"),
+    accentPitch: getElement("#accent-pitch", HTMLInputElement),
+    beatDots: getElement("#beat-dots", HTMLElement),
+    beatsPerMeasure: getElement("#beats-per-measure", HTMLSelectElement),
+    bpmDisplay: getElement("#bpm-display", HTMLElement),
+    bpmInput: getElement("#bpm-input", HTMLInputElement),
+    bpmSlider: getElement("#bpm-slider", HTMLInputElement),
+    clickPitch: getElement("#click-pitch", HTMLInputElement),
+    decreaseTempo: getElement("#decrease-tempo", HTMLButtonElement),
+    increaseTempo: getElement("#increase-tempo", HTMLButtonElement),
+    intervalReadout: getElement("#interval-readout", HTMLElement),
+    playButton: getElement("#play-button", HTMLButtonElement),
     saveState: getElement("#save-state", HTMLElement),
-    themeSelect: getElement("#theme-select", HTMLSelectElement),
-    title: getElement(".topbar h1", HTMLHeadingElement),
+    subdivision: getElement("#subdivision", HTMLSelectElement),
+    tempoName: getElement("#tempo-name", HTMLElement),
+    volume: getElement("#volume", HTMLInputElement),
   };
 }
 
 function initializeApp() {
   initializeGoogleAnalytics();
 
-  const defaultState = createDefaultState();
   const elements = getElements();
-  let state = parseStoredState(localStorage.getItem(storageKey), defaultState);
+  let state = parseStoredState(localStorage.getItem(storageKey), createDefaultState());
+  let audioContext: AudioContext | undefined;
+  let currentStep = 0;
+  let isRunning = false;
+  let nextClickTime = 0;
+  let schedulerId: number | undefined;
   let saveTimer: number | undefined;
 
   function saveState() {
     localStorage.setItem(storageKey, JSON.stringify(state));
-    elements.saveState.textContent = "Saved locally";
+    elements.saveState.textContent = "Saved";
     window.clearTimeout(saveTimer);
     saveTimer = window.setTimeout(() => {
-      elements.saveState.textContent = "Changes autosave";
-    }, 1600);
+      elements.saveState.textContent = "Local";
+    }, 1400);
   }
 
-  function applyTheme() {
-    document.documentElement.dataset.theme = state.theme;
+  function updateState(patch: Partial<MetronomeState>) {
+    state = normalizeState({ ...state, ...patch });
+    saveState();
+    render();
   }
 
-  function renderItems() {
-    elements.itemList.replaceChildren();
-
-    if (state.items.length === 0) {
-      const emptyState = document.createElement("p");
-      emptyState.className = "empty-state";
-      emptyState.textContent = "No items yet. Add one to start shaping this template.";
-      elements.itemList.append(emptyState);
-      return;
+  function ensureAudioContext(): AudioContext {
+    const AudioConstructor = window.AudioContext ?? window.webkitAudioContext;
+    if (!AudioConstructor) {
+      throw new Error("Web Audio API unavailable");
     }
 
-    state.items.forEach((item) => {
-      const row = document.createElement("li");
-      row.className = "item-row";
-      row.dataset.done = String(item.done);
+    audioContext = audioContext ?? new AudioConstructor();
+    return audioContext;
+  }
 
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.checked = item.done;
-      checkbox.ariaLabel = `Mark ${item.text} complete`;
-      checkbox.addEventListener("change", () => {
-        state = updateItem(state, item.id, { done: checkbox.checked });
-        saveState();
-        render();
-      });
+  function scheduleClick(time: number, kind: ClickKind, step: number) {
+    const context = ensureAudioContext();
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    const isAccent = kind === "accent";
+    const isSubdivision = kind === "subdivision";
 
-      const label = document.createElement("span");
-      label.textContent = item.text;
+    oscillator.type = isSubdivision ? "sine" : "square";
+    oscillator.frequency.setValueAtTime(
+      isAccent ? state.accentPitch : isSubdivision ? state.clickPitch * 0.55 : state.clickPitch,
+      time,
+    );
+    gain.gain.setValueAtTime(0.0001, time);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.001, state.volume), time + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + (isSubdivision ? 0.035 : 0.055));
 
-      const removeButton = document.createElement("button");
-      removeButton.className = "icon-button";
-      removeButton.type = "button";
-      removeButton.ariaLabel = `Remove ${item.text}`;
-      removeButton.textContent = "x";
-      removeButton.addEventListener("click", () => {
-        state = removeItem(state, item.id);
-        saveState();
-        render();
-      });
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start(time);
+    oscillator.stop(time + 0.07);
 
-      row.append(checkbox, label, removeButton);
-      elements.itemList.append(row);
+    const delay = Math.max(0, (time - context.currentTime) * 1000);
+    window.setTimeout(() => markStep(step, kind), delay);
+  }
+
+  function scheduler() {
+    const context = ensureAudioContext();
+    const lookaheadSeconds = 0.1;
+
+    while (nextClickTime < context.currentTime + lookaheadSeconds) {
+      const step = currentStep;
+      scheduleClick(nextClickTime, getClickKind(step, state), step);
+      nextClickTime += secondsPerStep(state);
+      currentStep = (currentStep + 1) % stepsPerMeasure(state);
+    }
+  }
+
+  function start() {
+    const context = ensureAudioContext();
+    context.resume();
+    isRunning = true;
+    currentStep = 0;
+    nextClickTime = context.currentTime + 0.05;
+    schedulerId = window.setInterval(scheduler, 25);
+    scheduler();
+    render();
+  }
+
+  function stop() {
+    isRunning = false;
+    window.clearInterval(schedulerId);
+    schedulerId = undefined;
+    currentStep = 0;
+    elements.beatDots.querySelectorAll(".beat-dot").forEach((dot) => dot.classList.remove("active", "accent"));
+    render();
+  }
+
+  function markStep(step: number, kind: ClickKind) {
+    if (!isRunning) return;
+    const dotIndex = Math.floor(step / state.subdivision);
+    elements.beatDots.querySelectorAll(".beat-dot").forEach((dot, index) => {
+      dot.classList.toggle("active", index === dotIndex);
+      dot.classList.toggle("accent", index === dotIndex && kind === "accent");
     });
+  }
+
+  function renderBeatDots() {
+    elements.beatDots.replaceChildren();
+
+    for (let index = 0; index < state.beatsPerMeasure; index += 1) {
+      const dot = document.createElement("span");
+      dot.className = "beat-dot";
+      dot.ariaLabel = `Beat ${index + 1}`;
+      elements.beatDots.append(dot);
+    }
   }
 
   function render() {
-    document.title = `${state.appName} App Template`;
-    elements.title.textContent = state.appName;
-    elements.appNameInput.value = state.appName;
-    elements.themeSelect.value = state.theme;
-    elements.itemCount.textContent = String(state.items.length);
-    applyTheme();
-    renderItems();
+    document.title = "Metronome Timing";
+    elements.bpmDisplay.textContent = String(state.bpm);
+    elements.bpmInput.value = String(state.bpm);
+    elements.bpmSlider.value = String(state.bpm);
+    elements.beatsPerMeasure.value = String(state.beatsPerMeasure);
+    elements.subdivision.value = String(state.subdivision);
+    elements.accentPitch.value = String(state.accentPitch);
+    elements.clickPitch.value = String(state.clickPitch);
+    elements.volume.value = String(Math.round(state.volume * 100));
+    elements.tempoName.textContent = tempoName(state.bpm);
+    elements.intervalReadout.textContent = `${Math.round(secondsPerStep(state) * 1000)} ms`;
+    elements.playButton.textContent = isRunning ? "Stop" : "Start";
+    elements.playButton.setAttribute("aria-pressed", String(isRunning));
+    renderBeatDots();
   }
 
-  function updateCurrentNavLink() {
-    const currentHash = window.location.hash || "#overview";
-    elements.navLinks.forEach((link) => {
-      link.setAttribute("aria-current", link.getAttribute("href") === currentHash ? "page" : "false");
-    });
-  }
+  elements.playButton.addEventListener("click", () => {
+    if (isRunning) {
+      stop();
+      return;
+    }
 
-  elements.itemForm.addEventListener("submit", (event) => {
-    event.preventDefault();
-    const text = elements.itemInput.value.trim();
-    if (!text) return;
-    state = addItem(state, text);
-    saveState();
-    render();
-    elements.itemInput.value = "";
-    elements.itemInput.focus();
+    start();
   });
 
-  elements.clearItemsButton.addEventListener("click", () => {
-    state = clearDoneItems(state);
-    saveState();
-    render();
-  });
-
-  elements.appNameInput.addEventListener("input", () => {
-    state = { ...state, appName: elements.appNameInput.value.trim() || "Cordia" };
-    saveState();
-    render();
-  });
-
-  elements.themeSelect.addEventListener("change", () => {
-    state = { ...state, theme: elements.themeSelect.value as Theme };
-    saveState();
-    render();
-  });
-
-  window.addEventListener("hashchange", updateCurrentNavLink);
+  elements.bpmSlider.addEventListener("input", () => updateState({ bpm: Number(elements.bpmSlider.value) }));
+  elements.bpmInput.addEventListener("input", () => updateState({ bpm: Number(elements.bpmInput.value) }));
+  elements.decreaseTempo.addEventListener("click", () => updateState({ bpm: state.bpm - 1 }));
+  elements.increaseTempo.addEventListener("click", () => updateState({ bpm: state.bpm + 1 }));
+  elements.beatsPerMeasure.addEventListener("change", () => updateState({ beatsPerMeasure: Number(elements.beatsPerMeasure.value) }));
+  elements.subdivision.addEventListener("change", () => updateState({ subdivision: Number(elements.subdivision.value) as Subdivision }));
+  elements.accentPitch.addEventListener("input", () => updateState({ accentPitch: Number(elements.accentPitch.value) }));
+  elements.clickPitch.addEventListener("input", () => updateState({ clickPitch: Number(elements.clickPitch.value) }));
+  elements.volume.addEventListener("input", () => updateState({ volume: Number(elements.volume.value) / 100 }));
 
   render();
-  updateCurrentNavLink();
 }
 
 if (typeof document !== "undefined") {

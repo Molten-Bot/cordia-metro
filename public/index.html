@@ -3,12 +3,12 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="color-scheme" content="light dark">
+    <meta name="color-scheme" content="light">
     <meta
       name="description"
-      content="A small browser-only web application template ready for static hosting."
+      content="Metronome Timing is a browser metronome with adjustable pace, meter, subdivision, pitch, and volume."
     >
-    <title>Cordia App Template</title>
+    <title>Metronome Timing</title>
     <link rel="author" href="/humans.txt" type="text/plain">
     <link rel="alternate" href="/llm.txt" type="text/plain" title="LLM-readable site information">
     <link rel="stylesheet" href="/global.css">
@@ -20,117 +20,87 @@
 
     <div class="app-shell">
       <header class="topbar">
-        <div>
-          <p class="eyebrow">Browser app template</p>
-          <h1>Cordia</h1>
-        </div>
-        <nav class="nav" aria-label="Primary">
-          <a href="#overview" aria-current="page">Overview</a>
-          <a href="#workspace">Workspace</a>
-          <a href="#settings">Settings</a>
-        </nav>
+        <a class="brand" href="#main" aria-label="Metronome Timing home">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>Metronome Timing</span>
+        </a>
+        <span class="save-state" id="save-state" role="status">Local</span>
       </header>
 
-      <main id="main">
-        <section class="hero" id="overview" aria-labelledby="hero-title">
-          <div class="hero-copy">
-            <p class="eyebrow">Static hosting ready starter</p>
-            <h2 id="hero-title">A clean starting point for browser-only apps.</h2>
-            <p>
-              Customize the data model, views, and actions without introducing a
-              build pipeline. State is local by default, markup stays plain, and
-              assets live in one deployable folder.
-            </p>
-            <div class="hero-actions">
-              <a class="button primary" href="#workspace">Open workspace</a>
-              <a class="button secondary" href="#settings">Edit settings</a>
+      <main id="main" class="workspace">
+        <section class="meter-stage" aria-labelledby="app-title">
+          <div class="tempo-readout">
+            <p class="eyebrow">Internet metronome</p>
+            <h1 id="app-title">Metronome Timing</h1>
+            <div class="bpm-stack" aria-live="polite">
+              <span id="bpm-display">96</span>
+              <span>BPM</span>
+            </div>
+            <div class="tempo-meta">
+              <span id="tempo-name">Andante</span>
+              <span id="interval-readout">625 ms</span>
             </div>
           </div>
-          <div class="status-panel" aria-label="Application status">
-            <div>
-              <span class="status-dot" aria-hidden="true"></span>
-              <span>Ready for customization</span>
-            </div>
-            <strong id="item-count">0</strong>
-            <span>saved items</span>
+
+          <div class="metronome" aria-label="Metronome visual reference">
+            <img src="/metronome-reference.jpg" alt="Wooden pyramid metronome with tempo scale and pendulum">
           </div>
+
+          <div class="transport">
+            <button class="step-button" id="decrease-tempo" type="button" aria-label="Decrease tempo">-</button>
+            <button class="play-button" id="play-button" type="button" aria-pressed="false">Start</button>
+            <button class="step-button" id="increase-tempo" type="button" aria-label="Increase tempo">+</button>
+          </div>
+
+          <div class="beat-dots" id="beat-dots" aria-label="Beat indicator"></div>
         </section>
 
-        <section class="section-grid" id="workspace" aria-labelledby="workspace-title">
-          <div class="panel workspace-panel">
-            <div class="section-heading">
-              <div>
-                <p class="eyebrow">Workspace</p>
-                <h2 id="workspace-title">Starter list</h2>
-              </div>
-              <button class="button secondary" id="clear-items" type="button">Clear done</button>
-            </div>
-
-            <form class="item-form" id="item-form">
-              <label for="item-input">New item</label>
-              <div class="input-row">
-                <input
-                  id="item-input"
-                  name="item"
-                  type="text"
-                  autocomplete="off"
-                  maxlength="80"
-                  placeholder="Add a task, note, or placeholder record"
-                  required
-                >
-                <button class="button primary" type="submit">Add</button>
-              </div>
-            </form>
-
-            <ul class="item-list" id="item-list" aria-live="polite"></ul>
+        <section class="controls" aria-label="Metronome controls">
+          <div class="control-block tempo-control">
+            <label for="bpm-slider">Tempo</label>
+            <input id="bpm-slider" type="range" min="40" max="208" value="96">
+            <input id="bpm-input" class="number-input" type="number" min="40" max="208" value="96" inputmode="numeric" aria-label="Tempo BPM">
           </div>
 
-          <aside class="panel" aria-labelledby="snapshot-title">
-            <p class="eyebrow">Snapshot</p>
-            <h2 id="snapshot-title">Template pieces</h2>
-            <dl class="stat-list">
-              <div>
-                <dt>Runtime</dt>
-                <dd>Browser only</dd>
-              </div>
-              <div>
-                <dt>Deploy folder</dt>
-                <dd><code>public</code></dd>
-              </div>
-              <div>
-                <dt>Styles</dt>
-                <dd><code>global.css</code></dd>
-              </div>
-              <div>
-                <dt>Script</dt>
-                <dd><code>app.js</code></dd>
-              </div>
-            </dl>
-          </aside>
-        </section>
-
-        <section class="panel settings-panel" id="settings" aria-labelledby="settings-title">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Settings</p>
-              <h2 id="settings-title">App preferences</h2>
-            </div>
-            <span class="save-state" id="save-state" role="status">Saved locally</span>
-          </div>
-
-          <div class="settings-grid">
-            <label class="field">
-              <span>App name</span>
-              <input id="app-name" type="text" maxlength="32" value="Cordia">
+          <div class="control-grid">
+            <label class="field" for="beats-per-measure">
+              <span>Meter</span>
+              <select id="beats-per-measure">
+                <option value="2">2 beats</option>
+                <option value="3">3 beats</option>
+                <option value="4" selected>4 beats</option>
+                <option value="5">5 beats</option>
+                <option value="6">6 beats</option>
+                <option value="7">7 beats</option>
+                <option value="8">8 beats</option>
+                <option value="9">9 beats</option>
+                <option value="12">12 beats</option>
+              </select>
             </label>
 
-            <label class="field">
-              <span>Theme</span>
-              <select id="theme-select">
-                <option value="system">System</option>
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
+            <label class="field" for="subdivision">
+              <span>Subdivision</span>
+              <select id="subdivision">
+                <option value="1" selected>Quarter</option>
+                <option value="2">Eighth</option>
+                <option value="3">Triplet</option>
+                <option value="4">Sixteenth</option>
               </select>
+            </label>
+
+            <label class="field" for="accent-pitch">
+              <span>Accent pitch</span>
+              <input id="accent-pitch" type="range" min="660" max="1760" value="1320">
+            </label>
+
+            <label class="field" for="click-pitch">
+              <span>Click pitch</span>
+              <input id="click-pitch" type="range" min="440" max="1320" value="880">
+            </label>
+
+            <label class="field wide" for="volume">
+              <span>Volume</span>
+              <input id="volume" type="range" min="0" max="100" value="68">
             </label>
           </div>
         </section>
