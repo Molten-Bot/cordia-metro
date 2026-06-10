@@ -1,6 +1,6 @@
-# Cordia App Template
+# Metronome Timing
 
-Cordia App Template is a static browser-only web application template ready for static hosting.
+Metronome Timing is a static browser metronome with adjustable tempo, meter, subdivision, click pitch, accent pitch, and volume.
 
 Creator: cordia.molten.bot
 Creator URL: https://cordia.molten.bot
@@ -11,5 +11,6 @@ Primary files:
 - /index.html
 - /global.css
 - /app.js
+- /metronome-reference.jpg
 
-Use: Downstream customization of local-state browser applications without a build pipeline.
+Use: Browser-based timing practice and pace coordination.

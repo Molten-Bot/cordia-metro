@@ -3,66 +3,77 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
-  addItem,
-  clearDoneItems,
+  clampNumber,
   createDefaultState,
+  getClickKind,
+  normalizeState,
   parseStoredState,
-  removeItem,
-  updateItem,
+  secondsPerBeat,
+  secondsPerStep,
+  stepsPerMeasure,
+  tempoName,
 } from "../public/app.js";
 
-test("createDefaultState uses supplied id factory", () => {
-  let nextId = 1;
-  const state = createDefaultState(() => `item-${nextId++}`);
-
-  assert.deepEqual(
-    state.items.map((item) => item.id),
-    ["item-1", "item-2", "item-3"],
-  );
+test("default metronome state matches release controls", () => {
+  assert.deepEqual(createDefaultState(), {
+    bpm: 96,
+    beatsPerMeasure: 4,
+    subdivision: 1,
+    accentPitch: 1320,
+    clickPitch: 880,
+    volume: 0.68,
+  });
 });
 
-test("parseStoredState merges valid stored values with defaults", () => {
-  const defaultState = createDefaultState(() => "default-id");
+test("stored state is parsed and clamped to supported ranges", () => {
   const stored = JSON.stringify({
-    appName: "Typed Cordia",
-    theme: "dark",
-    items: [{ id: "stored-id", text: "Stored item", done: true }],
+    bpm: 260,
+    beatsPerMeasure: 1,
+    subdivision: 3,
+    accentPitch: 2000,
+    clickPitch: 120,
+    volume: 2,
   });
 
-  assert.deepEqual(parseStoredState(stored, defaultState), {
-    appName: "Typed Cordia",
-    theme: "dark",
-    items: [{ id: "stored-id", text: "Stored item", done: true }],
+  assert.deepEqual(parseStoredState(stored, createDefaultState()), {
+    bpm: 208,
+    beatsPerMeasure: 2,
+    subdivision: 3,
+    accentPitch: 1760,
+    clickPitch: 440,
+    volume: 1,
   });
 });
 
-test("parseStoredState falls back when stored JSON is invalid", () => {
-  const defaultState = createDefaultState(() => "default-id");
+test("invalid stored state falls back to defaults", () => {
+  const defaultState = createDefaultState();
 
   assert.equal(parseStoredState("{", defaultState), defaultState);
 });
 
-test("item reducers add, update, remove, and clear items immutably", () => {
-  const state = {
-    appName: "Cordia",
-    theme: "system",
-    items: [
-      { id: "one", text: "One", done: false },
-      { id: "two", text: "Two", done: true },
-    ],
-  };
+test("timing helpers calculate beat, step, and measure cadence", () => {
+  const state = normalizeState({ bpm: 120, beatsPerMeasure: 3, subdivision: 2 });
 
-  const added = addItem(state, "Three", () => "three");
-  const updated = updateItem(added, "one", { done: true });
-  const removed = removeItem(updated, "two");
-  const cleared = clearDoneItems(removed);
+  assert.equal(secondsPerBeat(120), 0.5);
+  assert.equal(secondsPerStep(state), 0.25);
+  assert.equal(stepsPerMeasure(state), 6);
+});
 
-  assert.deepEqual(added.items[0], { id: "three", text: "Three", done: false });
-  assert.equal(state.items[0].done, false);
-  assert.deepEqual(
-    cleared.items,
-    [{ id: "three", text: "Three", done: false }],
-  );
+test("click pattern accents measure starts and marks subdivisions", () => {
+  const state = normalizeState({ beatsPerMeasure: 4, subdivision: 2 });
+
+  assert.equal(getClickKind(0, state), "accent");
+  assert.equal(getClickKind(1, state), "subdivision");
+  assert.equal(getClickKind(2, state), "beat");
+  assert.equal(getClickKind(8, state), "accent");
+});
+
+test("number normalization and tempo labels are stable", () => {
+  assert.equal(clampNumber("bad", 1, 4, 3), 3);
+  assert.equal(clampNumber(10, 1, 4, 3), 4);
+  assert.equal(tempoName(55), "Largo");
+  assert.equal(tempoName(96), "Andante");
+  assert.equal(tempoName(180), "Presto");
 });
 
 test("served files do not reference disallowed providers or tooling", async () => {
