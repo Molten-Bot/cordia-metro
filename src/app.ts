@@ -149,6 +149,10 @@ export function getClickKind(stepIndex: number, state: MetronomeState): ClickKin
   return "subdivision";
 }
 
+export function shouldRenderBeatDots(currentDotCount: number, state: MetronomeState): boolean {
+  return currentDotCount !== state.beatsPerMeasure;
+}
+
 export function tempoName(bpm: number): string {
   if (bpm < 60) return "Largo";
   if (bpm < 76) return "Adagio";
@@ -344,6 +348,10 @@ function initializeApp() {
   }
 
   function renderBeatDots() {
+    if (!shouldRenderBeatDots(elements.beatDots.childElementCount, state)) {
+      return;
+    }
+
     elements.beatDots.replaceChildren();
 
     for (let index = 0; index < state.beatsPerMeasure; index += 1) {

@@ -94,6 +94,9 @@ export function getClickKind(stepIndex, state) {
         return "beat";
     return "subdivision";
 }
+export function shouldRenderBeatDots(currentDotCount, state) {
+    return currentDotCount !== state.beatsPerMeasure;
+}
 export function tempoName(bpm) {
     if (bpm < 60)
         return "Largo";
@@ -267,6 +270,9 @@ function initializeApp() {
         });
     }
     function renderBeatDots() {
+        if (!shouldRenderBeatDots(elements.beatDots.childElementCount, state)) {
+            return;
+        }
         elements.beatDots.replaceChildren();
         for (let index = 0; index < state.beatsPerMeasure; index += 1) {
             const dot = document.createElement("span");

@@ -11,6 +11,7 @@ import {
   parseStoredState,
   secondsPerBeat,
   secondsPerStep,
+  shouldRenderBeatDots,
   stateToSearchParams,
   stepsPerMeasure,
   tempoName,
@@ -94,6 +95,14 @@ test("click pattern accents measure starts and marks subdivisions", () => {
   assert.equal(getClickKind(1, state), "subdivision");
   assert.equal(getClickKind(2, state), "beat");
   assert.equal(getClickKind(8, state), "accent");
+});
+
+test("beat dot rendering is stable across non-meter control updates", () => {
+  const state = normalizeState({ beatsPerMeasure: 4 });
+
+  assert.equal(shouldRenderBeatDots(0, state), true);
+  assert.equal(shouldRenderBeatDots(4, state), false);
+  assert.equal(shouldRenderBeatDots(3, state), true);
 });
 
 test("number normalization and tempo labels are stable", () => {
