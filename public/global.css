@@ -144,17 +144,21 @@ a {
 }
 
 .workspace {
-  align-items: stretch;
+  align-items: flex-start;
   gap: 1rem;
-  min-height: calc(100vh - 118px);
 }
 
 .meter-stage {
   position: relative;
   flex: 1 1 58%;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 1.25rem;
+  display: grid;
+  grid-template-areas:
+    "readout visual"
+    "transport visual"
+    "dots visual";
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+  gap: clamp(1rem, 2vw, 1.5rem);
+  align-items: end;
   overflow: hidden;
   padding: clamp(1.25rem, 3vw, 2rem);
   border: 1px solid var(--line);
@@ -166,6 +170,7 @@ a {
 }
 
 .tempo-readout {
+  grid-area: readout;
   position: relative;
   z-index: 2;
   width: min(520px, 100%);
@@ -230,10 +235,11 @@ h1 {
 }
 
 .metronome {
-  position: absolute;
-  right: clamp(-2rem, 2vw, 1rem);
-  bottom: 0;
-  width: clamp(220px, 26vw, 320px);
+  grid-area: visual;
+  align-self: end;
+  justify-self: end;
+  position: relative;
+  width: min(100%, 320px);
   opacity: 0.95;
   pointer-events: none;
 }
@@ -253,6 +259,7 @@ h1 {
 }
 
 .transport {
+  grid-area: transport;
   position: relative;
   z-index: 2;
   align-items: center;
@@ -283,6 +290,7 @@ h1 {
 }
 
 .beat-dots {
+  grid-area: dots;
   position: relative;
   z-index: 2;
   flex-wrap: wrap;
@@ -419,16 +427,19 @@ select:focus {
   }
 
   .meter-stage {
+    grid-template-areas:
+      "readout"
+      "visual"
+      "transport"
+      "dots";
+    grid-template-columns: 1fr;
     min-height: auto;
   }
 
   .metronome {
-    position: relative;
-    right: auto;
-    bottom: auto;
     align-self: center;
+    justify-self: center;
     width: min(54vw, 240px);
-    transform: none;
   }
 }
 
