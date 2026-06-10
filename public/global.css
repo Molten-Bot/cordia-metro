@@ -78,6 +78,7 @@ a {
 
 .topbar,
 .brand,
+.top-actions,
 .workspace,
 .meter-stage,
 .transport,
@@ -112,6 +113,22 @@ a {
   background:
     linear-gradient(90deg, transparent 45%, var(--ink) 45% 55%, transparent 55%),
     radial-gradient(circle, var(--brass) 0 34%, var(--wood) 35% 100%);
+}
+
+.top-actions {
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.copy-link {
+  min-height: 2.45rem;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid var(--ink);
+  border-radius: var(--radius);
+  background: var(--ink);
+  color: var(--surface);
+  cursor: pointer;
+  font-weight: 900;
 }
 
 .save-state {
@@ -349,6 +366,10 @@ h1 {
   flex-basis: 100%;
 }
 
+.switch-field {
+  align-content: space-between;
+}
+
 input,
 select {
   width: 100%;
@@ -362,6 +383,13 @@ select {
 input[type="range"] {
   accent-color: var(--wood-dark);
   padding: 0;
+}
+
+input[type="checkbox"] {
+  width: 2.9rem;
+  min-height: 1.55rem;
+  accent-color: var(--teal);
+  justify-self: start;
 }
 
 button:focus-visible,
@@ -413,6 +441,14 @@ select:focus {
   .topbar {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .top-actions {
+    width: 100%;
+  }
+
+  .copy-link {
+    flex: 1;
   }
 
   .metronome {

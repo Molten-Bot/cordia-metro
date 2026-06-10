@@ -24,7 +24,10 @@
           <span class="brand-mark" aria-hidden="true"></span>
           <span>Metronome Timing</span>
         </a>
-        <span class="save-state" id="save-state" role="status">Local</span>
+        <div class="top-actions">
+          <button class="copy-link" id="copy-link" type="button">Copy link</button>
+          <span class="save-state" id="save-state" role="status">Local</span>
+        </div>
       </header>
 
       <main id="main" class="workspace">
@@ -96,6 +99,16 @@
             <label class="field" for="click-pitch">
               <span>Click pitch</span>
               <input id="click-pitch" type="range" min="440" max="1320" value="880">
+            </label>
+
+            <label class="field" for="latency-ms">
+              <span>Latency trim (ms)</span>
+              <input id="latency-ms" type="number" min="-120" max="120" value="0" inputmode="numeric">
+            </label>
+
+            <label class="field switch-field" for="sync-mode">
+              <span>UTC sync</span>
+              <input id="sync-mode" type="checkbox" checked>
             </label>
 
             <label class="field wide" for="volume">
