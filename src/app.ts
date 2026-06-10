@@ -12,6 +12,8 @@ export interface MetronomeState {
   subdivision: Subdivision;
   accentPitch: number;
   clickPitch: number;
+  latencyMs: number;
+  syncMode: boolean;
   volume: number;
 }
 
@@ -23,12 +25,15 @@ interface AppElements {
   bpmInput: HTMLInputElement;
   bpmSlider: HTMLInputElement;
   clickPitch: HTMLInputElement;
+  copyLink: HTMLButtonElement;
   decreaseTempo: HTMLButtonElement;
   increaseTempo: HTMLButtonElement;
   intervalReadout: HTMLElement;
+  latencyMs: HTMLInputElement;
   playButton: HTMLButtonElement;
   saveState: HTMLElement;
   subdivision: HTMLSelectElement;
+  syncMode: HTMLInputElement;
   tempoName: HTMLElement;
   volume: HTMLInputElement;
 }
@@ -49,6 +54,8 @@ export function createDefaultState(): MetronomeState {
     subdivision: 1,
     accentPitch: 1320,
     clickPitch: 880,
+    latencyMs: 0,
+    syncMode: true,
     volume: 0.68,
   };
 }
@@ -63,7 +70,9 @@ export function clampNumber(value: unknown, min: number, max: number, fallback: 
   return Math.min(max, Math.max(min, numeric));
 }
 
-export function normalizeState(value: Partial<MetronomeState> = {}): MetronomeState {
+type MetronomeStateInput = Partial<Record<keyof MetronomeState, unknown>>;
+
+export function normalizeState(value: MetronomeStateInput = {}): MetronomeState {
   const defaults = createDefaultState();
   const subdivision = Math.round(clampNumber(value.subdivision, 1, 4, defaults.subdivision));
 
@@ -73,6 +82,8 @@ export function normalizeState(value: Partial<MetronomeState> = {}): MetronomeSt
     subdivision: isSubdivision(subdivision) ? subdivision : defaults.subdivision,
     accentPitch: Math.round(clampNumber(value.accentPitch, 660, 1760, defaults.accentPitch)),
     clickPitch: Math.round(clampNumber(value.clickPitch, 440, 1320, defaults.clickPitch)),
+    latencyMs: Math.round(clampNumber(value.latencyMs, -120, 120, defaults.latencyMs)),
+    syncMode: typeof value.syncMode === "boolean" ? value.syncMode : defaults.syncMode,
     volume: clampNumber(value.volume, 0, 1, defaults.volume),
   };
 }
@@ -86,6 +97,37 @@ export function parseStoredState(storedState: string | null, defaultState: Metro
   } catch {
     return defaultState;
   }
+}
+
+export function stateToSearchParams(state: MetronomeState): URLSearchParams {
+  const normalized = normalizeState(state);
+  const params = new URLSearchParams();
+  params.set("bpm", String(normalized.bpm));
+  params.set("meter", String(normalized.beatsPerMeasure));
+  params.set("sub", String(normalized.subdivision));
+  params.set("accent", String(normalized.accentPitch));
+  params.set("click", String(normalized.clickPitch));
+  params.set("latency", String(normalized.latencyMs));
+  params.set("sync", normalized.syncMode ? "1" : "0");
+  params.set("volume", String(Math.round(normalized.volume * 100)));
+  return params;
+}
+
+export function parseSearchParams(search: string, defaultState: MetronomeState): MetronomeState {
+  const params = new URLSearchParams(search);
+  if (params.toString() === "") return defaultState;
+
+  return normalizeState({
+    ...defaultState,
+    bpm: params.get("bpm") ?? undefined,
+    beatsPerMeasure: params.get("meter") ?? undefined,
+    subdivision: params.get("sub") ?? undefined,
+    accentPitch: params.get("accent") ?? undefined,
+    clickPitch: params.get("click") ?? undefined,
+    latencyMs: params.get("latency") ?? undefined,
+    syncMode: params.get("sync") === null ? defaultState.syncMode : params.get("sync") !== "0",
+    volume: params.get("volume") === null ? defaultState.volume : Number(params.get("volume")) / 100,
+  });
 }
 
 export function secondsPerBeat(bpm: number): number {
@@ -139,6 +181,23 @@ function getElement<T extends Element>(selector: string, type: { new (): T }): T
   return element;
 }
 
+function copyText(text: string): boolean {
+  const input = document.createElement("textarea");
+  input.value = text;
+  input.style.position = "fixed";
+  input.style.left = "-9999px";
+  document.body.append(input);
+  input.select();
+  const copied = document.execCommand("copy");
+  input.remove();
+
+  if (!copied && navigator.clipboard) {
+    void navigator.clipboard.writeText(text);
+  }
+
+  return copied;
+}
+
 function getElements(): AppElements {
   return {
     accentPitch: getElement("#accent-pitch", HTMLInputElement),
@@ -148,12 +207,15 @@ function getElements(): AppElements {
     bpmInput: getElement("#bpm-input", HTMLInputElement),
     bpmSlider: getElement("#bpm-slider", HTMLInputElement),
     clickPitch: getElement("#click-pitch", HTMLInputElement),
+    copyLink: getElement("#copy-link", HTMLButtonElement),
     decreaseTempo: getElement("#decrease-tempo", HTMLButtonElement),
     increaseTempo: getElement("#increase-tempo", HTMLButtonElement),
     intervalReadout: getElement("#interval-readout", HTMLElement),
+    latencyMs: getElement("#latency-ms", HTMLInputElement),
     playButton: getElement("#play-button", HTMLButtonElement),
     saveState: getElement("#save-state", HTMLElement),
     subdivision: getElement("#subdivision", HTMLSelectElement),
+    syncMode: getElement("#sync-mode", HTMLInputElement),
     tempoName: getElement("#tempo-name", HTMLElement),
     volume: getElement("#volume", HTMLInputElement),
   };
@@ -163,7 +225,7 @@ function initializeApp() {
   initializeGoogleAnalytics();
 
   const elements = getElements();
-  let state = parseStoredState(localStorage.getItem(storageKey), createDefaultState());
+  let state = parseSearchParams(window.location.search, parseStoredState(localStorage.getItem(storageKey), createDefaultState()));
   let audioContext: AudioContext | undefined;
   let currentStep = 0;
   let isRunning = false;
@@ -173,6 +235,7 @@ function initializeApp() {
 
   function saveState() {
     localStorage.setItem(storageKey, JSON.stringify(state));
+    window.history.replaceState(null, "", `${window.location.pathname}?${stateToSearchParams(state).toString()}`);
     elements.saveState.textContent = "Saved";
     window.clearTimeout(saveTimer);
     saveTimer = window.setTimeout(() => {
@@ -183,6 +246,9 @@ function initializeApp() {
   function updateState(patch: Partial<MetronomeState>) {
     state = normalizeState({ ...state, ...patch });
     saveState();
+    if (isRunning && state.syncMode) {
+      alignSyncedSchedule(ensureAudioContext());
+    }
     render();
   }
 
@@ -221,6 +287,17 @@ function initializeApp() {
     window.setTimeout(() => markStep(step, kind), delay);
   }
 
+  function alignSyncedSchedule(context: AudioContext) {
+    const stepMs = secondsPerStep(state) * 1000;
+    const nowWallMs = performance.timeOrigin + performance.now() + state.latencyMs;
+    const remainderMs = nowWallMs % stepMs;
+    const waitMs = remainderMs === 0 ? 0 : stepMs - remainderMs;
+    const targetWallMs = nowWallMs + waitMs;
+
+    nextClickTime = context.currentTime + waitMs / 1000 + 0.035;
+    currentStep = Math.floor(targetWallMs / stepMs) % stepsPerMeasure(state);
+  }
+
   function scheduler() {
     const context = ensureAudioContext();
     const lookaheadSeconds = 0.1;
@@ -237,8 +314,12 @@ function initializeApp() {
     const context = ensureAudioContext();
     context.resume();
     isRunning = true;
-    currentStep = 0;
-    nextClickTime = context.currentTime + 0.05;
+    if (state.syncMode) {
+      alignSyncedSchedule(context);
+    } else {
+      currentStep = 0;
+      nextClickTime = context.currentTime + 0.05;
+    }
     schedulerId = window.setInterval(scheduler, 25);
     scheduler();
     render();
@@ -282,6 +363,8 @@ function initializeApp() {
     elements.subdivision.value = String(state.subdivision);
     elements.accentPitch.value = String(state.accentPitch);
     elements.clickPitch.value = String(state.clickPitch);
+    elements.latencyMs.value = String(state.latencyMs);
+    elements.syncMode.checked = state.syncMode;
     elements.volume.value = String(Math.round(state.volume * 100));
     elements.tempoName.textContent = tempoName(state.bpm);
     elements.intervalReadout.textContent = `${Math.round(secondsPerStep(state) * 1000)} ms`;
@@ -307,7 +390,16 @@ function initializeApp() {
   elements.subdivision.addEventListener("change", () => updateState({ subdivision: Number(elements.subdivision.value) as Subdivision }));
   elements.accentPitch.addEventListener("input", () => updateState({ accentPitch: Number(elements.accentPitch.value) }));
   elements.clickPitch.addEventListener("input", () => updateState({ clickPitch: Number(elements.clickPitch.value) }));
+  elements.latencyMs.addEventListener("input", () => updateState({ latencyMs: Number(elements.latencyMs.value) }));
+  elements.syncMode.addEventListener("change", () => updateState({ syncMode: elements.syncMode.checked }));
   elements.volume.addEventListener("input", () => updateState({ volume: Number(elements.volume.value) / 100 }));
+  elements.copyLink.addEventListener("click", () => {
+    const url = `${window.location.origin}${window.location.pathname}?${stateToSearchParams(state).toString()}`;
+    elements.copyLink.textContent = copyText(url) ? "Copied" : "Copy failed";
+    window.setTimeout(() => {
+      elements.copyLink.textContent = "Copy link";
+    }, 1400);
+  });
 
   render();
 }

@@ -7,9 +7,11 @@ import {
   createDefaultState,
   getClickKind,
   normalizeState,
+  parseSearchParams,
   parseStoredState,
   secondsPerBeat,
   secondsPerStep,
+  stateToSearchParams,
   stepsPerMeasure,
   tempoName,
 } from "../public/app.js";
@@ -21,6 +23,8 @@ test("default metronome state matches release controls", () => {
     subdivision: 1,
     accentPitch: 1320,
     clickPitch: 880,
+    latencyMs: 0,
+    syncMode: true,
     volume: 0.68,
   });
 });
@@ -32,6 +36,8 @@ test("stored state is parsed and clamped to supported ranges", () => {
     subdivision: 3,
     accentPitch: 2000,
     clickPitch: 120,
+    latencyMs: 240,
+    syncMode: false,
     volume: 2,
   });
 
@@ -41,6 +47,8 @@ test("stored state is parsed and clamped to supported ranges", () => {
     subdivision: 3,
     accentPitch: 1760,
     clickPitch: 440,
+    latencyMs: 120,
+    syncMode: false,
     volume: 1,
   });
 });
@@ -57,6 +65,26 @@ test("timing helpers calculate beat, step, and measure cadence", () => {
   assert.equal(secondsPerBeat(120), 0.5);
   assert.equal(secondsPerStep(state), 0.25);
   assert.equal(stepsPerMeasure(state), 6);
+});
+
+test("share links round-trip timing coordination state", () => {
+  const state = normalizeState({
+    bpm: 144,
+    beatsPerMeasure: 7,
+    subdivision: 4,
+    accentPitch: 1500,
+    clickPitch: 700,
+    latencyMs: -42,
+    syncMode: true,
+    volume: 0.5,
+  });
+
+  const params = stateToSearchParams(state);
+
+  assert.equal(params.get("bpm"), "144");
+  assert.equal(params.get("meter"), "7");
+  assert.equal(params.get("latency"), "-42");
+  assert.deepEqual(parseSearchParams(`?${params.toString()}`, createDefaultState()), state);
 });
 
 test("click pattern accents measure starts and marks subdivisions", () => {
